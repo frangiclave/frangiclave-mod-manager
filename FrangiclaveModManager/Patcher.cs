@@ -68,7 +68,9 @@ namespace FrangiclaveModManager
                 mm.Write();
             }
 
-            File.Copy(assemblyPath + ".tmp", assemblyPath, true);
+            // Copy the resultant assembly
+            File.Delete(assemblyPath);
+            File.Move(assemblyPath + ".tmp", assemblyPath);
 
         }
 

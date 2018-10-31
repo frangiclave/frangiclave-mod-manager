@@ -40,6 +40,9 @@ namespace FrangiclaveModManager
 
         public static void Main(string[] args)
         {
+            // Load arguments
+            bool waitForKey = !(args.Length > 0 && (args[0] == "-n" || args[0] == "--no-wait"));
+
             // Write the welcome message
             Console.WriteLine(Logo);
             Console.WriteLine($"Version: {Version}");
@@ -55,6 +58,11 @@ namespace FrangiclaveModManager
             Patcher patcher = new Patcher(config.GamePath);
             patcher.Patch();
             Console.WriteLine();
+
+            if (!waitForKey)
+            {
+                return;
+            }
 
             Console.Write("Press any key to close...");
             Console.ReadKey();
