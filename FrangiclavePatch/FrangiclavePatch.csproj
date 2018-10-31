@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props"
+            Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')"/>
+
+    <PropertyGroup>
+        <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+        <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+        <OutputType>Library</OutputType>
+        <RootNamespace>FrangiclavePatch</RootNamespace>
+        <AssemblyName>FrangiclavePatch</AssemblyName>
+        <LangVersion>7.3</LangVersion>
+        <PlatformTarget>AnyCPU</PlatformTarget>
+        <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+        <OutputPath>bin\Debug</OutputPath>
+        <DefineConstants>DEBUG;TRACE</DefineConstants>
+        <ErrorReport>prompt</ErrorReport>
+        <WarningLevel>4</WarningLevel>
+        <Externalconsole>true</Externalconsole>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+        <DebugType>none</DebugType>
+        <Optimize>true</Optimize>
+        <OutputPath>bin\Release</OutputPath>
+        <ErrorReport>prompt</ErrorReport>
+        <WarningLevel>4</WarningLevel>
+        <Externalconsole>true</Externalconsole>
+        <DefineConstants>TRACE</DefineConstants>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Reference Include="Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+            <HintPath>..\CultistSimulator\Assembly-CSharp.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+            <HintPath>..\CultistSimulator\mscorlib.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="System, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+            <HintPath>..\CultistSimulator\System.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="System.Core, Version=3.5.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+            <HintPath>..\CultistSimulator\System.Core.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="Unity.TextMeshPro, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+            <HintPath>..\CultistSimulator\Unity.TextMeshPro.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+            <HintPath>..\CultistSimulator\UnityEngine.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+            <HintPath>..\CultistSimulator\UnityEngine.CoreModule.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="UnityEngine.ImageConversionModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+            <HintPath>..\CultistSimulator\UnityEngine.ImageConversionModule.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="UnityEngine.UI, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null">
+            <HintPath>..\CultistSimulator\UnityEngine.UI.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="HashtableExtensions.cs" />
+        <Compile Include="Modding\Dependency.cs" />
+        <Compile Include="Modding\Map.cs" />
+        <Compile Include="Modding\Mod.cs" />
+        <Compile Include="Modding\ModManager.cs" />
+        <Compile Include="Logging.cs" />
+        <Compile Include="Patches\Assets\CS\TabletopUI\DoorSlot.cs" />
+        <Compile Include="Patches\Assets\CS\TabletopUI\MapTokenContainer.cs" />
+        <Compile Include="Patches\Assets\CS\TabletopUI\TabletopImageBurner.cs" />
+        <Compile Include="Patches\Assets\CS\TabletopUI\TabletopManager.cs" />
+        <Compile Include="Patches\Assets\TabletopUi\SituationController.cs" />
+        <Compile Include="Patches\Compendium.cs" />
+        <Compile Include="Patches\ContentImporter.cs" />
+        <Compile Include="Patches\DebugTools.cs" />
+        <Compile Include="Patches\MenuScreenController.cs" />
+        <Compile Include="Patches\PortalEffect.cs" />
+        <Compile Include="Patches\Recipe.cs" />
+        <Compile Include="Patches\ResourcesManager.cs" />
+        <Compile Include="Properties\AssemblyInfo.cs" />
+        <Compile Include="Texture2DExtensions.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\MonoMod\MonoMod\MonoMod.csproj">
+            <Project>{1839cfe2-3db0-45a8-b03d-9aa797479a3a}</Project>
+            <Name>MonoMod</Name>
+        </ProjectReference>
+    </ItemGroup>
+
+    <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets"/>
+</Project>
