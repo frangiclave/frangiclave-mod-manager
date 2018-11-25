@@ -38,24 +38,24 @@ namespace Frangiclave.Modding
 
         private readonly string _modsFolder;
 
-        private readonly Dictionary<string, Mod> _mods;
+        public Dictionary<string, Mod> Mods { get; }
 
         public ModManager()
         {
-            _mods = new Dictionary<string, Mod>();
+            Mods = new Dictionary<string, Mod>();
             _modsFolder = Path.Combine(Application.streamingAssetsPath, ModsFolderName);
         }
 
         public void LoadAll()
         {
             Logging.Info("Loading all mods");
-            _mods.Clear();
+            Mods.Clear();
 
             // Check if the mods folder exists
             if (!Directory.Exists(_modsFolder))
             {
-                Logging.Warn("Mods folder not found, no mods loaded");
-                return;
+                Directory.CreateDirectory(_modsFolder);
+                Logging.Warn("Mods folder not found, creating");
             }
 
             // Load the mod data from the file system
@@ -114,22 +114,22 @@ namespace Frangiclave.Modding
 
                 // Add the mod to the collection
                 Logging.Info($"Loaded mod '{modId}'");
-                _mods.Add(modId, mod);
+                Mods.Add(modId, mod);
             }
             Logging.Info("Loaded all mods");
 
             // Check the dependencies to see if there are any missing or invalid ones
-            foreach (var mod in _mods)
+            foreach (var mod in Mods)
             {
                 foreach (var dependency in mod.Value.Dependencies)
                 {
-                    if (!_mods.ContainsKey(dependency.ModId))
+                    if (!Mods.ContainsKey(dependency.ModId))
                     {
                         Logging.Warn($"Dependency '{dependency.ModId}' for '{mod.Key}' not found ");
                     }
                     else
                     {
-                        var availableVersion = _mods[dependency.ModId].Version;
+                        var availableVersion = Mods[dependency.ModId].Version;
                         bool isVersionValid;
                         switch (dependency.VersionOperator)
                         {
@@ -165,7 +165,7 @@ namespace Frangiclave.Modding
         public IEnumerable<Hashtable> GetContentForCategory(string category)
         {
             var categoryContent = new List<Hashtable>();
-            foreach (var mod in _mods)
+            foreach (var mod in Mods)
             {
                 if (mod.Value.Contents.ContainsKey(category))
                 {
@@ -178,7 +178,7 @@ namespace Frangiclave.Modding
 
         public Sprite GetSprite(string spriteResourceName)
         {
-            foreach (var mod in _mods.Values)
+            foreach (var mod in Mods.Values)
             {
                 if (mod.Images.ContainsKey(spriteResourceName))
                 {
