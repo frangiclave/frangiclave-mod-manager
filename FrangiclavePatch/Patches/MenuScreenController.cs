@@ -121,7 +121,7 @@ namespace Frangiclave.Patches
 
             // Add entries for each mod
             foreach (var mod in _modManager.Mods.Values)
-                AddModEntry(mod.Id, $"{mod.Name} (v${mod.Version}), by ${mod.Author}", font, content.transform);
+                AddModEntry(mod.Id, $"{mod.Name} (v{mod.Version}), by {mod.Author}", font, content.transform);
 
             return modsPanel;
         }

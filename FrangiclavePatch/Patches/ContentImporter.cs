@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Assets.CS.TabletopUI;
@@ -69,6 +70,29 @@ namespace Frangiclave.Patches
             foreach (var moddedItem in moddedItems)
             {
                 var moddedItemId = moddedItem.GetString("id");
+
+                // Check if this is deleting an existing item
+                if (moddedItem.GetBool("deleted"))
+                {
+                    // Try to find an item with this ID
+                    int foundIndex = -1;
+                    for (int i = 0; i < items.Count; i++)
+                        if (((Hashtable) items[i])["id"].ToString() == moddedItemId)
+                        {
+                            foundIndex = i;
+                            break;
+                        }
+                    if (foundIndex < 0)
+                        Logging.Warn($"Tried to delete '{moddedItemId}' but was not found");
+                    else
+                    {
+                        Logging.Info($"Deleted '{moddedItemId}'");
+                        items.RemoveAt(foundIndex);
+                    }
+
+                    break;
+                }
+
                 Hashtable originalItem = null;
                 var parents = new Dictionary<string, Hashtable>();
                 var parentsOrder = moddedItem.GetArrayList("extends") ?? new ArrayList();
@@ -197,6 +221,56 @@ namespace Frangiclave.Patches
                         }
 
                         value.AddHashtable(newValue, true);
+
+                        break;
+                    }
+
+                    // remove: removes items from a dictionary or a list
+                    case "remove":
+                    {
+                        var newValue = item.GetArrayList(property);
+                        if (newValue == null)
+                        {
+                            Logging.Warn(
+                                $"Invalid value for '{property}' in '{itemId}': invalid type, must be a list");
+                            continue;
+                        }
+
+                        if (!item.ContainsKey(originalProperty))
+                        {
+                            Logging.Warn(
+                                $"Cannot apply '{operation}' to '{originalProperty}' in '{itemId}': failed to find '{originalProperty}'");
+                            continue;
+                        }
+
+                        object originalPropertyValue = item[originalProperty];
+                        Type propType = originalPropertyValue.GetType();
+                        if (propType == typeof(Hashtable))
+                        {
+                            var value = item.GetHashtable(originalProperty);
+                            foreach (string toDelete in newValue)
+                            {
+                                if (value.ContainsKey(toDelete))
+                                    value.Remove(toDelete);
+                                else
+                                    Logging.Warn($"Failed to delete '{toDelete}' from '{originalProperty}' in '{itemId}'");
+                            }
+                        }
+                        else if (propType == typeof(ArrayList))
+                        {
+                            var value = item.GetArrayList(originalProperty);
+                            foreach (string toDelete in newValue)
+                            {
+                                if (value.Contains(toDelete))
+                                    value.Remove(toDelete);
+                                else
+                                    Logging.Warn($"Failed to delete '{toDelete}' from '{originalProperty}' in '{itemId}'");
+                            }
+                        }
+                        else
+                        {
+                            Logging.Warn($"Cannot apply '{operation}' to '{originalProperty}' in '{itemId}': invalid type, must be a dictionary or a list");
+                        }
 
                         break;
                     }
