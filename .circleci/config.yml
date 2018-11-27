@@ -1,0 +1,65 @@
+version: 2
+jobs:
+  build:
+    docker:
+    - image: lyrositor/frangiclave-mod-manager
+    steps:
+    - checkout
+    - run:
+        name: Getting Game DLLs
+        command: cp /cs-dlls/* CultistSimulator/
+    - run:
+        name: Restoring dependencies
+        command: nuget restore -NonInteractive -Verbosity quiet
+    - run:
+        name: Building Frangiclave Mod Manager
+        command: msbuild /p:Configuration=Release /clp:ErrorsOnly /p:OutputPath="/tmp/build/"
+    - run:
+        name: Packaging artifacts
+        command: |
+          VERSION_FILE=./FrangiclaveModManager/Properties/AssemblyInfo.cs
+          if [[ $(cat $VERSION_FILE) =~ AssemblyVersion\(\"([0-9\.]+)\"\) ]]
+          then
+            VERSION="${BASH_REMATCH[1]}"
+          fi
+          WORKSPACE_DIR=/tmp/workspace
+          ARTIFACTS_DIR=$WORKSPACE_DIR/artifacts
+          ZIP_DIR="/tmp/frangiclave-mod-manager-$VERSION"
+          ZIP_FILE="$ARTIFACTS_DIR/frangiclave-mod-manager-$VERSION.zip"
+          rm -rf $ZIP_DIR $WORKSPACE_DIR
+          mkdir -p $ZIP_DIR
+          mkdir -p $WORKSPACE_DIR
+          mkdir -p $ARTIFACTS_DIR
+          cp /tmp/build/* $ZIP_DIR
+          cd /tmp/
+          zip -r ${ZIP_FILE} frangiclave-mod-manager-$VERSION
+          echo -n $VERSION > $WORKSPACE_DIR/version.txt
+    - persist_to_workspace:
+        root: /tmp/workspace/
+        paths:
+        - artifacts/
+        - version.txt
+  publish:
+    docker:
+    - image: circleci/golang:1.8
+    steps:
+    - attach_workspace:
+        at: /tmp/workspace/
+    - store_artifacts:
+        path: /tmp/workspace/artifacts
+        destination: /
+    - run:
+        name: Publishing artifacts
+        command: |
+          VERSION=$(cat /tmp/workspace/version.txt)
+          VERSION="${VERSION//[$'\t\r\n']}"
+          go get github.com/tcnksm/ghr
+          ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -soft "v${VERSION}" "/tmp/workspace/artifacts/"
+workflows:
+  version: 2
+  build_and_publish:
+    jobs:
+    - build
+    - publish:
+        requires:
+        - build

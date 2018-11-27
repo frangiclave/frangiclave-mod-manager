@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using IniParser;
 using IniParser.Exceptions;
 using IniParser.Model;
@@ -17,8 +19,6 @@ namespace FrangiclaveModManager
  |_| |_|  \__,_|_| |_|\__, |_|\___|_|\__,_| \_/ \___|
                       |___/
 ";
-
-        private const string Version = "1.0.0";
 
         private static readonly string[] DefaultGameDirectoryPaths = {
             // Windows
@@ -40,12 +40,41 @@ namespace FrangiclaveModManager
 
         public static void Main(string[] args)
         {
+
+            // Get the version
+            string version = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location).FileVersion;
+
             // Load arguments
-            bool waitForKey = !(args.Length > 0 && (args[0] == "-n" || args[0] == "--no-wait"));
+            bool waitForKey = true;
+            bool showVersion = false;
+            foreach (var arg in args)
+            {
+                switch (arg)
+                {
+                    case "-n":
+                    case "--no-wait":
+                        waitForKey = false;
+                        break;
+                    case "-v":
+                    case "--version":
+                        showVersion = true;
+                        break;
+                    default:
+                        Console.WriteLine($"Invalid argument: '{arg}'");
+                        break;
+                }
+            }
+
+            // Display just the version if that was requested
+            if (showVersion)
+            {
+                Console.WriteLine(version);
+                return;
+            }
 
             // Write the welcome message
             Console.WriteLine(Logo);
-            Console.WriteLine($"Version: {Version}");
+            Console.WriteLine($"Version: {version}");
             Console.WriteLine();
 
             // Load the configuration
@@ -64,8 +93,7 @@ namespace FrangiclaveModManager
                 return;
             }
 
-            Console.Write("Press any key to close...");
-            Console.ReadKey();
+            WaitForInput();
         }
 
         private static Config LoadConfiguration()
@@ -145,6 +173,19 @@ namespace FrangiclaveModManager
         private static string LocateGameDirectory()
         {
             return DefaultGameDirectoryPaths.FirstOrDefault(Directory.Exists);
+        }
+
+        private static void WaitForInput()
+        {
+            Console.Write("Press Enter to close...");
+            try
+            {
+                Console.ReadKey();
+            }
+            catch (InvalidOperationException)
+            {
+                Console.Read();
+            }
         }
     }
 }

@@ -41,6 +41,11 @@
     <Compile Include="Config.cs" />
     <Compile Include="Patcher.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <None Include="..\README.release.txt">
+      <Link>README.txt</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FrangiclavePatch\FrangiclavePatch.csproj">
