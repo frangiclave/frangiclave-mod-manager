@@ -8,6 +8,7 @@ namespace Frangiclave.Patches.Assets.CS.TabletopUI
 {
     [MonoModPatch("Assets.CS.TabletopUI.DoorSlot")]
     [SuppressMessage("ReSharper", "UnusedMember.Global")]
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
     public class DoorSlot : global::Assets.CS.TabletopUI.DoorSlot
     {
         [MonoModIgnore]

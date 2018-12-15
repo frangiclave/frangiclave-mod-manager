@@ -8,29 +8,47 @@ using MonoMod;
 using OrbCreationExtensions;
 
 #pragma warning disable CS0626
+#pragma warning disable CS0649
 
 namespace Frangiclave.Patches
 {
     [MonoModPatch("global::ContentImporter")]
     [SuppressMessage("ReSharper", "UnusedMember.Global")]
     [SuppressMessage("ReSharper", "UnusedMember.Local")]
+    [SuppressMessage("ReSharper", "CollectionNeverUpdated.Local")]
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
     public class ContentImporter : global::ContentImporter
     {
+        [MonoModIgnore]
+        [SuppressMessage("ReSharper", "CollectionNeverUpdated.Global")]
+        private new List<Recipe> Recipes;
+
         private extern void orig_PopulateRecipeList(ArrayList importedRecipes);
 
         public new void PopulateRecipeList(ArrayList importedRecipes)
         {
-            // Set up a dictionary to hold the map property for each recipe
+            // Set up dictionaries to hold the additional properties for each recipe
             // This has to be done before because the original function will delete the ID first otherwise,
             // making it impossible to re-associate the property with the recipe.
             var recipeMaps = new Dictionary<string, string>();
+            var remoteAlternatives = new Dictionary<string, List<bool>>();
             for (var i = 0; i < importedRecipes.Count; i++)
             {
                 var recipeData = importedRecipes.GetHashtable(i);
                 var id = recipeData["id"].ToString();
-                if (!recipeData.ContainsKey("map")) continue;
-                recipeMaps[id] = recipeData["map"].ToString();
-                recipeMaps.Remove("map");
+                if (recipeData.ContainsKey("map"))
+                {
+                    recipeMaps[id] = recipeData["map"].ToString();
+                    recipeMaps.Remove("map");
+                    recipeData.Remove("map");
+                }
+
+                if (recipeData.ContainsKey("alternativerecipes"))
+                {
+                    remoteAlternatives[id] = new List<bool>();
+                    foreach (Hashtable ra in recipeData.GetArrayList("alternativerecipes"))
+                        remoteAlternatives[id].Add(ra.GetBool("remote"));
+                }
             }
 
             // Import all the recipes
@@ -39,9 +57,15 @@ namespace Frangiclave.Patches
             // Add the map IDs
             foreach (var recipe in Recipes)
             {
-                if (!recipeMaps.ContainsKey(recipe.Id)) continue;
-                var moddedRecipe = (Recipe) recipe;
-                moddedRecipe.MapId = recipeMaps[recipe.Id];
+                if (recipeMaps.ContainsKey(recipe.Id))
+                {
+                    var moddedRecipe = recipe;
+                    moddedRecipe.MapId = recipeMaps[recipe.Id];
+                }
+
+                if (remoteAlternatives.ContainsKey(recipe.Id))
+                    for (int i = 0; i < remoteAlternatives[recipe.Id].Count; i++)
+                        recipe.AlternativeRecipes[i].Remote = remoteAlternatives[recipe.Id][i];
             }
         }
 
@@ -203,7 +227,7 @@ namespace Frangiclave.Patches
                         var value = item.GetFloat(originalProperty);
                         var newValue = item.GetFloat(property);
 
-                        var modifier = (operation == "plus" ? 1 : -1);
+                        var modifier = operation == "plus" ? 1 : -1;
                         item[originalProperty] = value + newValue * modifier;
                         break;
                     }

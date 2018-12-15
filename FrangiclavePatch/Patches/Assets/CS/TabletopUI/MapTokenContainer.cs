@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Assets.CS.TabletopUI;
 using Frangiclave.Modding;
@@ -12,6 +13,7 @@ using UnityEngine.UI;
 namespace Frangiclave.Patches.Assets.CS.TabletopUI
 {
     [MonoModPatch("Assets.CS.TabletopUI.MapTokenContainer")]
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
     public class MapTokenContainer : global::Assets.CS.TabletopUI.MapTokenContainer
     {
         private Map _defaultMap;
@@ -68,13 +70,11 @@ namespace Frangiclave.Patches.Assets.CS.TabletopUI
             for (var i = 0; i < map.Portals.Count; i++)
             {
                 var portal = map.Portals[i];
-                Logging.Info($"\tLoading portal '{portal.Effect}'");
 
                 // Create the new door slot by copying the template
                 var doorSlot = Instantiate(_doorSlot, transform);
                 doorSlot.portalType = portal.Effect;
                 doorSlot.DeckBase = portal.DeckBase;
-                Logging.Info($"\t\tDeck: {portal.DeckBase}");
 
                 // Set the door's appearance
                 var icon = doorSlot.GetComponentsInChildren<Image>().FirstOrDefault(child => child.name == "Icon");
@@ -86,16 +86,11 @@ namespace Frangiclave.Patches.Assets.CS.TabletopUI
                 icon.sprite = portal.Icon;
                 iconTransform.sizeDelta = new Vector2(portal.Icon.rect.width, portal.Icon.rect.height);
                 doorSlot.defaultBackgroundColor = portal.Color;
-                Logging.Info($"\t\tColor: {portal.Color}");
 
                 // Set the door's position
                 doorSlot.transform.localPosition = portal.Position;
-                Logging.Info($"\t\tPosition: {portal.Position}");
                 for(var j = 0; j < portal.CardPositions.Count; j++)
-                {
                     doorSlot.cardPositions[j].localPosition = portal.CardPositions[j];
-                    Logging.Info($"\t\tCards {j}: {portal.CardPositions[j]}");
-                }
 
                 doorSlot.Initialise();
                 allSlots[i] = doorSlot;

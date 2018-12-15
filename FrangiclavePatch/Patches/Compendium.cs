@@ -87,6 +87,7 @@ namespace Frangiclave.Patches
 
                     portals.Add(new MapPortal(effect, deck, position, cardPositions, icon, color));
                 }
+
                 _maps.Add(
                     id,
                     new Map(id, portals));
@@ -96,6 +97,13 @@ namespace Frangiclave.Patches
         public Map GetMapById(string mapId)
         {
             return _maps.TryGetValue(mapId, out var value) ? value : null;
+        }
+
+        private extern Recipe orig_GetRecipeById(string recipeId);
+
+        public new Recipe GetRecipeById(string recipeId)
+        {
+            return orig_GetRecipeById(recipeId);
         }
     }
 }

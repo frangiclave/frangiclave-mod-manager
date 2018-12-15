@@ -14,6 +14,7 @@ namespace Frangiclave.Patches
     [SuppressMessage("ReSharper", "UnusedMember.Global")]
     [SuppressMessage("ReSharper", "UnassignedField.Global")]
     [SuppressMessage("ReSharper", "UnusedMember.Local")]
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
     public class MenuScreenController : global::MenuScreenController
     {
         [MonoModIgnore] public new TextMeshProUGUI VersionNumber;
@@ -23,7 +24,6 @@ namespace Frangiclave.Patches
         [MonoModIgnore] public new Button purgeButton;
 
         private ModManager _modManager;
-        private Button _modsButton;
         private CanvasGroupFader _modsPanel;
 
         private extern void orig_InitialiseServices();
@@ -36,13 +36,6 @@ namespace Frangiclave.Patches
             _modManager.LoadAll();
             registry.Register(_modManager);
             orig_InitialiseServices();
-        }
-
-        private extern void orig_UpdateAndShowMenu();
-
-        private void UpdateAndShowMenu()
-        {
-            orig_UpdateAndShowMenu();
 
             // Change the version number and subtitle to indicate the game has been modded
             VersionNumber.text += " [M]";
@@ -50,7 +43,7 @@ namespace Frangiclave.Patches
             Subtitle.SubtitleTextShadow.text += " [M]";
 
             // Create the Mods panel
-            _modsButton = BuildModsButton();
+            BuildModsButton();
             _modsPanel = BuildModsPanel();
         }
 
@@ -64,7 +57,7 @@ namespace Frangiclave.Patches
             ShowOverlay(_modsPanel);
         }
 
-        private Button BuildModsButton()
+        private void BuildModsButton()
         {
             Button modsButton = Instantiate(purgeButton);
             modsButton.transform.SetParent(purgeButton.transform.parent);
@@ -76,7 +69,7 @@ namespace Frangiclave.Patches
                     image.sprite = ResourcesManager.GetSpriteForAspect("knock");
             modsButton.onClick = new Button.ButtonClickedEvent();
             modsButton.onClick.AddListener(ShowModsPanel);
-            return modsButton;
+            modsButton.gameObject.SetActive(true);
         }
 
         private CanvasGroupFader BuildModsPanel()

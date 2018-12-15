@@ -67,6 +67,9 @@
       <HintPath>..\CultistSimulator\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.Networking, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null">
+      <HintPath>..\CultistSimulator\UnityEngine.Networking.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine.TextRenderingModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
       <HintPath>..\CultistSimulator\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>False</Private>
@@ -87,10 +90,24 @@
     <Compile Include="Modding\Mod.cs" />
     <Compile Include="Modding\ModManager.cs" />
     <Compile Include="Logging.cs" />
+    <Compile Include="Multiplayer\Messages\PartnerJoinMessage.cs" />
+    <Compile Include="Multiplayer\Messages\PartnerLeaveMessage.cs" />
+    <Compile Include="Multiplayer\Messages\RoomEnterMessage.cs" />
+    <Compile Include="Multiplayer\Messages\RoomJoinMessage.cs" />
+    <Compile Include="Multiplayer\Messages\SituationMessage.cs" />
+    <Compile Include="Multiplayer\MultiplayerClient.cs" />
+    <Compile Include="Multiplayer\NoonMsgType.cs" />
+    <Compile Include="Patches\Assets\Core\Commands\RecipeExecutionCommand.cs" />
+    <Compile Include="Patches\Assets\Core\Commands\SituationCreationCommand.cs" />
+    <Compile Include="Patches\Assets\Core\Entities\Situation.cs" />
+    <Compile Include="Patches\Assets\Core\RecipeConductor.cs" />
+    <Compile Include="Patches\Assets\Core\SituationEffectCommand.cs" />
     <Compile Include="Patches\Assets\CS\TabletopUI\DoorSlot.cs" />
     <Compile Include="Patches\Assets\CS\TabletopUI\MapTokenContainer.cs" />
+    <Compile Include="Patches\Assets\CS\TabletopUI\SituationToken.cs" />
     <Compile Include="Patches\Assets\CS\TabletopUI\TabletopImageBurner.cs" />
     <Compile Include="Patches\Assets\CS\TabletopUI\TabletopManager.cs" />
+    <Compile Include="Patches\Assets\TabletopUi\Scripts\Services\SituationBuilder.cs" />
     <Compile Include="Patches\Assets\TabletopUi\SituationController.cs" />
     <Compile Include="Patches\Compendium.cs" />
     <Compile Include="Patches\ContentImporter.cs" />
