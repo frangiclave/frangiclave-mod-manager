@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Assets.CS.TabletopUI;
 using Frangiclave.Modding;
+using Frangiclave.Multiplayer;
 using MonoMod;
 using OrbCreationExtensions;
 
@@ -22,6 +23,37 @@ namespace Frangiclave.Patches
         [MonoModIgnore]
         [SuppressMessage("ReSharper", "CollectionNeverUpdated.Global")]
         private new List<Recipe> Recipes;
+
+        private extern int orig_PopulateElements(ArrayList alElements);
+
+        public new int PopulateElements(ArrayList alElements)
+        {
+            Hashtable mpMortal = new Hashtable
+            {
+                {"id", "mp.mortal"},
+                {"label", "Mortal"},
+                {"description", "'The long habit of living indisposeth us for dying.' - Thomas Browne"},
+                {"isAspect", "true"},
+                {"icon", "mortal"}
+            };
+            alElements.Insert(0, mpMortal);
+            Hashtable mpPresence = new Hashtable
+            {
+                {"id", MultiplayerClient.PresenceId},
+                {"label", "A Presence"},
+                {"description", "Unnamed, unseen, but nonetheless, here they are."},
+                {"unique", "true"},
+                {
+                    "aspects", new Hashtable()
+                    {
+                        {"mp.mortal", 1}
+                    }
+                },
+                {"icon", "ritual_defense"}
+            };
+            alElements.Insert(1, mpPresence);
+            return orig_PopulateElements(alElements);
+        }
 
         private extern void orig_PopulateRecipeList(ArrayList importedRecipes);
 

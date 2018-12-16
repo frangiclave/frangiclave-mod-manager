@@ -35,6 +35,9 @@
       <HintPath>..\CultistSimulator\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Facepunch.Steamworks, Version=1.2.0.0, Culture=neutral, PublicKeyToken=null">
+      <HintPath>..\CultistSimulator\Facepunch.Steamworks.dll</HintPath>
+    </Reference>
     <Reference Include="mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
       <HintPath>..\CultistSimulator\mscorlib.dll</HintPath>
       <Private>False</Private>
@@ -107,6 +110,7 @@
     <Compile Include="Patches\Assets\CS\TabletopUI\SituationToken.cs" />
     <Compile Include="Patches\Assets\CS\TabletopUI\TabletopImageBurner.cs" />
     <Compile Include="Patches\Assets\CS\TabletopUI\TabletopManager.cs" />
+    <Compile Include="Patches\Assets\TabletopUi\Scripts\Infrastructure\GameDataExporter.cs" />
     <Compile Include="Patches\Assets\TabletopUi\Scripts\Services\SituationBuilder.cs" />
     <Compile Include="Patches\Assets\TabletopUi\SituationController.cs" />
     <Compile Include="Patches\Compendium.cs" />

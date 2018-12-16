@@ -1,3 +1,4 @@
+using Assets.Core.Entities;
 using Assets.Core.Interfaces;
 using Assets.CS.TabletopUI;
 using Frangiclave.Multiplayer.Messages;
@@ -9,6 +10,8 @@ namespace Frangiclave.Multiplayer
 {
     public class MultiplayerClient
     {
+        public const string PresenceId = "mp.presence";
+
         public bool IsConnected => _client.isConnected && _isInRoom;
 
         private const short Port = 4987;
@@ -34,6 +37,11 @@ namespace Frangiclave.Multiplayer
             _client.RegisterHandler(NoonMsgType.RoomJoin, OnRoomJoin);
             _client.Connect(_server, Port);
             _isInRoom = false;
+        }
+
+        public void Disconnect()
+        {
+            _client.Disconnect();
         }
 
         public void SendSituation(string verbId, string recipeId)
@@ -66,20 +74,30 @@ namespace Frangiclave.Multiplayer
         {
             var roomJoinMessage = message.ReadMessage<RoomJoinMessage>();
             _isInRoom = roomJoinMessage.Success;
-            Logging.Info(
-                _isInRoom ? $"Joined room '{_roomId}'" : $"Failed to join room '{_roomId}'");
+            if (_isInRoom)
+            {
+                Logging.Info($"Joined room '{_roomId}'");
+                ShowNotification("The Way is Opened", $"I have entered room '{_roomId}'.");
+            }
+            else
+            {
+                Logging.Info($"Failed to join room '{_roomId}'");
+                ShowNotification("The Way is Shut", $"I have been denied access to room '{_roomId}'.");
+            }
         }
 
         private void OnPartnerJoin(NetworkMessage message)
         {
             Logging.Info("Partner joined");
             ShowNotification("A Presence Nears", "Foe? Friend? Time will tell.");
+            AddPresenceCard();
         }
 
         private void OnPartnerLeave(NetworkMessage message)
         {
             Logging.Info("Partner left");
             ShowNotification("A Presence Departs", "Whoever they were, they are gone now.");
+            RemovePresenceCard();
         }
 
         private void OnSituationReceived(NetworkMessage message)
@@ -98,6 +116,31 @@ namespace Frangiclave.Multiplayer
         private static void ShowNotification(string title, string message)
         {
             Registry.Retrieve<INotifier>().ShowNotificationWindow(title, message);
+        }
+
+        void AddPresenceCard()
+        {
+            var tabletopManager = Registry.Retrieve<ITabletopManager>() as TabletopManager;
+            if (tabletopManager == null)
+                return;
+            var tabletop = tabletopManager._tabletop;
+            var stackManager = tabletop.GetElementStacksManager();
+
+            var element = Registry.Retrieve<ICompendium>().GetElementById(PresenceId);
+            if (element == null)
+                return;
+            stackManager.ModifyElementQuantity(
+                PresenceId, 1, Source.Existing(), new Context(Context.ActionSource.Debug));
+        }
+
+        void RemovePresenceCard()
+        {
+            var tabletopManager = Registry.Retrieve<ITabletopManager>() as TabletopManager;
+            if (tabletopManager == null)
+                return;
+            var tabletop = tabletopManager._tabletop;
+            tabletop.GetElementStacksManager().ModifyElementQuantity(
+                PresenceId, -1, Source.Existing(), new Context(Context.ActionSource.Debug));
         }
     }
 }

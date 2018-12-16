@@ -15,6 +15,8 @@ namespace Frangiclave.Patches.Assets.CS.TabletopUI
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     public class SituationToken : global::Assets.CS.TabletopUI.SituationToken
     {
+        public bool SendingAway { get; private set; }
+
         [MonoModIgnore] private Image countdownBar;
 
         private CanvasGroupFader _fader;
@@ -25,6 +27,7 @@ namespace Frangiclave.Patches.Assets.CS.TabletopUI
         {
             orig_Initialise(verb, sc, heart);
             _fader = gameObject.AddComponent<CanvasGroupFader>();
+            SendingAway = false;
         }
 
         private extern bool orig_Retire();
@@ -41,6 +44,7 @@ namespace Frangiclave.Patches.Assets.CS.TabletopUI
 
         public void SetRemote(bool isSending)
         {
+            SendingAway = isSending;
             var countdownImage = countdownBar.GetComponent<Image>();
             countdownImage.color = new Color(161, 151, 151);
             _fader.durationTurnOn = 3.0f;

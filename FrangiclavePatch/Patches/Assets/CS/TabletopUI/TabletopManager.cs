@@ -24,6 +24,8 @@ namespace Frangiclave.Patches.Assets.CS.TabletopUI
 
         [MonoModIgnore] private SituationBuilder _situationBuilder;
 
+        [MonoModIgnore] public new TabletopTokenContainer _tabletop;
+
         private Sprite _defaultMapSprite;
 
         private MultiplayerClient _client;
@@ -31,6 +33,7 @@ namespace Frangiclave.Patches.Assets.CS.TabletopUI
         public void JoinServer(string serverAddress, string roomId)
         {
             Logging.Info($"Attempting to join server '{serverAddress}' in room '{roomId}'");
+            _client?.Disconnect();
             _client = new MultiplayerClient(serverAddress, roomId);
         }
 
