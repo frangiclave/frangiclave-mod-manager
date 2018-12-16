@@ -67,7 +67,7 @@ namespace Frangiclave.Patches.Assets.Core
                     if (ar.Additional)
                     {
                         var command = new Frangiclave.Patches.Assets.Core.Commands.RecipeExecutionCommand(
-                            candidateRecipe, ar.Expulsion) {SendAway = true};
+                            candidateRecipe, ar.Expulsion) {SendAway = ar.Remote};
                         recipeExecutionCommands.Add(command);
                         NoonUtility.Log(recipe.Id + " says: Found additional recipe " + ar.Id +
                                         " to execute - adding it to execution list and looking for more");
