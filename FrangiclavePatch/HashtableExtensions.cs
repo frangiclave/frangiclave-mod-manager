@@ -1,5 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 using OrbCreationExtensions;
 
 namespace Frangiclave
@@ -18,10 +20,20 @@ namespace Frangiclave
             }
             else
             {
-                errors.Add($"Missing '{key}'");                
+                errors.Add($"Missing '{key}'");
             }
             return null;
         }
 
+        public static Hashtable DeepClone(this Hashtable a)
+        {
+            using (MemoryStream stream = new MemoryStream())
+            {
+                BinaryFormatter formatter = new BinaryFormatter();
+                formatter.Serialize(stream, a);
+                stream.Position = 0;
+                return (Hashtable) formatter.Deserialize(stream);
+            }
+        }
     }
 }

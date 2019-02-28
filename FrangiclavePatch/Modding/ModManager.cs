@@ -166,12 +166,9 @@ namespace Frangiclave.Modding
         {
             var categoryContent = new List<Hashtable>();
             foreach (var mod in Mods)
-            {
                 if (mod.Value.Contents.ContainsKey(category))
-                {
-                    categoryContent.AddRange(mod.Value.Contents[category]);
-                }
-            }
+                    foreach (var entry in mod.Value.Contents[category])
+                        categoryContent.Add(entry.DeepClone());
 
             return categoryContent;
         }

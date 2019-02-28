@@ -9,6 +9,14 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
+#if NETSTANDARD
+using TypeOrTypeInfo = System.Reflection.TypeInfo;
+using static System.Reflection.IntrospectionExtensions;
+using static System.Reflection.TypeExtensions;
+#else
+using TypeOrTypeInfo = System.Type;
+#endif
+
 namespace MonoMod.Utils {
     [MonoMod__OldName__("MonoMod.Relinker")]
     public delegate IMetadataTokenProvider Relinker(IMetadataTokenProvider mtp, IGenericParameterProvider context);
@@ -19,14 +27,7 @@ namespace MonoMod.Utils {
     [MonoMod__OldName__("MonoMod.MonoModExt")]
     public static class MonoModExt {
 
-        public static IDictionary<string, object> SharedData = new Dictionary<string, object>() {
-            { "Platform",           (PlatformHelper.Current & ~Platform.X64).ToString() },
-            { "PlatformPrefix",     (PlatformHelper.Current & ~Platform.X64).ToString().ToLowerInvariant() + "_" },
-            { "Arch",               (PlatformHelper.Current & Platform.X64).ToString() },
-            { "Architecture",       (PlatformHelper.Current & Platform.X64).ToString() },
-            { "ArchPrefix",         (PlatformHelper.Current & Platform.X64).ToString().ToLowerInvariant() + "_" },
-            { "ArchitecturePrefix", (PlatformHelper.Current & Platform.X64).ToString().ToLowerInvariant() + "_" }
-        };
+        public static Dictionary<string, object> SharedData = new Dictionary<string, object>();
 
         static readonly Regex TypeGenericParamRegex = new Regex(@"\!\d");
         static readonly Regex MethodGenericParamRegex = new Regex(@"\!\!\d");
@@ -59,6 +60,38 @@ namespace MonoMod.Utils {
             }
         }
 
+        public static MethodDefinition Clone(this MethodDefinition o, MethodDefinition c = null) {
+            if (o == null)
+                return null;
+            if (c == null)
+                c = new MethodDefinition(o.Name, o.Attributes, o.ReturnType);
+            c.Name = o.Name;
+            c.Attributes = o.Attributes;
+            c.ReturnType = o.ReturnType;
+            c.DeclaringType = o.DeclaringType;
+            c.MetadataToken = c.MetadataToken;
+            c.Body = o.Body.Clone(c);
+            c.Attributes = o.Attributes;
+            c.ImplAttributes = o.ImplAttributes;
+            c.PInvokeInfo = o.PInvokeInfo;
+            c.IsPreserveSig = o.IsPreserveSig;
+            c.IsPInvokeImpl = o.IsPInvokeImpl;
+
+            foreach (GenericParameter genParam in o.GenericParameters)
+                c.GenericParameters.Add(genParam.Clone());
+
+            foreach (ParameterDefinition param in o.Parameters)
+                c.Parameters.Add(param);
+
+            foreach (CustomAttribute attrib in o.CustomAttributes)
+                c.CustomAttributes.Add(attrib.Clone());
+
+            foreach (MethodReference @override in o.Overrides)
+                c.Overrides.Add(@override);
+
+            return c;
+        }
+
         public static MethodBody Clone(this MethodBody o, MethodDefinition m) {
             if (o == null)
                 return null;
@@ -72,7 +105,7 @@ namespace MonoMod.Utils {
             c.ExceptionHandlers.AddRange(o.ExceptionHandlers);
             c.Variables.AddRange(o.Variables);
 
-#if !LEGACY
+#if !CECIL0_9
             m.CustomDebugInformations.AddRange(o.Method.CustomDebugInformations);
             m.DebugInformation.SequencePoints.AddRange(o.Method.DebugInformation.SequencePoints);
 #endif
@@ -80,8 +113,8 @@ namespace MonoMod.Utils {
             return c;
         }
 
-        public readonly static System.Reflection.FieldInfo f_GenericParameter_position = typeof(GenericParameter).GetField("position", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        public readonly static System.Reflection.FieldInfo f_GenericParameter_type = typeof(GenericParameter).GetField("type", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        public static readonly System.Reflection.FieldInfo f_GenericParameter_position = typeof(GenericParameter).GetField("position", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        public static readonly System.Reflection.FieldInfo f_GenericParameter_type = typeof(GenericParameter).GetField("type", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         public static GenericParameter Update(this GenericParameter param, GenericParameter other)
             => param.Update(other.Position, other.Type);
         public static GenericParameter Update(this GenericParameter param, int position, GenericParameterType type) {
@@ -206,7 +239,7 @@ namespace MonoMod.Utils {
             StringBuilder builder = new StringBuilder();
 
             if (simple) {
-                if (withType)
+                if (withType && method.DeclaringType != null)
                     builder.Append(type ?? method.DeclaringType.GetPatchFullName()).Append("::");
                 builder.Append(name ?? method.Name);
                 return builder.ToString();
@@ -253,6 +286,35 @@ namespace MonoMod.Utils {
 
             return builder.ToString();
         }
+
+        public static string GetFindableID(this CallSite method) {
+            StringBuilder builder = new StringBuilder();
+
+            builder
+                .Append(method.ReturnType.GetPatchFullName())
+                .Append(" ");
+
+            builder.Append("(");
+
+            if (method.HasParameters) {
+                Collection<ParameterDefinition> parameters = method.Parameters;
+                for (int i = 0; i < parameters.Count; i++) {
+                    ParameterDefinition parameter = parameters[i];
+                    if (i > 0)
+                        builder.Append(",");
+
+                    if (parameter.ParameterType.IsSentinel)
+                        builder.Append("...,");
+
+                    builder.Append(parameter.ParameterType.GetPatchFullName());
+                }
+            }
+
+            builder.Append(")");
+
+            return builder.ToString();
+        }
+
         public static string GetFindableID(this System.Reflection.MethodBase method, string name = null, string type = null, bool withType = true, bool proxyMethod = false, bool simple = false) {
             while (method is System.Reflection.MethodInfo && method.IsGenericMethod && !method.IsGenericMethodDefinition)
                 method = ((System.Reflection.MethodInfo) method).GetGenericMethodDefinition();
@@ -260,7 +322,7 @@ namespace MonoMod.Utils {
             StringBuilder builder = new StringBuilder();
 
             if (simple) {
-                if (withType)
+                if (withType && method.DeclaringType != null)
                     builder.Append(type ?? method.DeclaringType.FullName).Append("::");
                 builder.Append(name ?? method.Name);
                 return builder.ToString();
@@ -295,7 +357,11 @@ namespace MonoMod.Utils {
                 if (i > (proxyMethod ? 1 : 0))
                     builder.Append(",");
 
-                if (Attribute.IsDefined(parameter, t_ParamArrayAttribute))
+#if NETSTANDARD
+                if (System.Reflection.CustomAttributeExtensions.IsDefined(parameter, t_ParamArrayAttribute, false))
+#else
+                if (t_ParamArrayAttribute.GetCustomAttributes(t_ParamArrayAttribute, false).Length != 0)
+#endif
                     builder.Append("...,");
 
                 builder.Append(parameter.ParameterType.FullName);
@@ -312,8 +378,12 @@ namespace MonoMod.Utils {
             if (mref == null)
                 return false;
 
+            TypeReference mrefDecl = mref.DeclaringType;
+            if (mrefDecl?.FullName == "<Module>")
+                mrefDecl = null;
+
             if (mref is GenericParameter genParamRef) {
-                if (!(minfo is Type genParamInfo) || !genParamInfo.IsGenericParameter)
+                if (!(minfo is TypeOrTypeInfo genParamInfo) || !genParamInfo.IsGenericParameter)
                     return false;
                 // Don't check owner as it introduces a circular check.
                 /*
@@ -323,37 +393,47 @@ namespace MonoMod.Utils {
                 return genParamRef.Position == genParamInfo.GenericParameterPosition;
             }
 
-            if (!(mref.DeclaringType?.Is(minfo.DeclaringType) ?? minfo.DeclaringType == null))
+            if (!(mrefDecl?.Is(minfo.DeclaringType?.GetTypeInfo()) ?? minfo.DeclaringType == null))
                 return false;
-            if (mref.Name != minfo.Name)
+            // Note: This doesn't work for TypeSpecification, as the reflection-side type.Name changes according to any modifiers (f.e. IsArray).
+            if (!(mref is TypeSpecification) && mref.Name != minfo.Name)
                 return false;
 
             if (mref is TypeReference) {
-                if (!(minfo is Type typeInfo))
+                if (!(minfo is TypeOrTypeInfo typeInfo))
                     return false;
 
                 if (mref is GenericInstanceType genTypeRef) {
-                    // GenericInstanceType full names differ greatly from their Reflection counterpart,
-                    // compared to most other TypeSpecifications.
                     if (!typeInfo.IsGenericType)
                         return false;
 
-                    Collection<TypeReference> paramRefs = genTypeRef.GenericArguments;
-                    Type[] paramInfos = typeInfo.GetGenericArguments();
-                    if (paramRefs.Count != paramInfos.Length)
+                    Collection<TypeReference> gparamRefs = genTypeRef.GenericArguments;
+                    Type[] gparamInfos = typeInfo.AsType().GetGenericArguments();
+                    if (gparamRefs.Count != gparamInfos.Length)
                         return false;
 
-                    for (int i = 0; i < paramRefs.Count; i++) {
-                        if (!paramRefs[i].Is(paramInfos[i]))
+                    for (int i = 0; i < gparamRefs.Count; i++) {
+                        if (!gparamRefs[i].Is(gparamInfos[i].GetTypeInfo()))
                             return false;
                     }
 
-                    return genTypeRef.ElementType.Is(typeInfo.GetGenericTypeDefinition());
+                    return genTypeRef.ElementType.Is(typeInfo.GetGenericTypeDefinition().GetTypeInfo());
                 }
+
+                if (mref is ArrayType arrayTypeRef) {
+                    if (!typeInfo.IsArray)
+                        return false;
+
+                    return arrayTypeRef.Dimensions.Count == typeInfo.GetArrayRank() && arrayTypeRef.ElementType.Is(typeInfo.GetElementType().GetTypeInfo());
+                }
+
+                if (mref is TypeSpecification typeSpecRef)
+                    // Note: There are TypeSpecifications which map to non-ElementType-y reflection Types.
+                    return typeSpecRef.ElementType.Is(typeInfo.HasElementType ? typeInfo.GetElementType().GetTypeInfo() : typeInfo);
 
                 // DeclaringType was already checked before.
                 // Avoid converting nested type separators between + (.NET) and / (cecil)
-                if (mref.DeclaringType != null)
+                if (mrefDecl != null)
                     return mref.Name == typeInfo.Name;
                 return mref.FullName == typeInfo.FullName;
             }
@@ -367,24 +447,71 @@ namespace MonoMod.Utils {
                 if (paramRefs.Count != paramInfos.Length)
                     return false;
 
-                for (int i = 0; i < paramRefs.Count; i++) {
-                    TypeReference paramTypeRef = paramRefs[i].ParameterType;
-                    if (paramTypeRef is GenericParameter genParamParamRef) {
-                        if (genParamParamRef.Owner is MethodReference && methodRef is GenericInstanceMethod genMethodRef) {
-                            paramTypeRef = genMethodRef.GenericArguments[genParamParamRef.Position];
-                        } else if (genParamParamRef.Owner is TypeReference && methodRef.DeclaringType is GenericInstanceType genTypeRef) {
-                            paramTypeRef = genTypeRef.GenericArguments[genParamParamRef.Position];
-                        } else {
-                            // throw new NotSupportedException("\"Deep\" generic argument parameter type resolving currently not supported");
-                            // ... or we're comparing generic params against generic params.
-                        }
+                bool IsParamTypeRef(TypeReference typeRef, TypeOrTypeInfo typeInfo) {
+                    if (typeRef is GenericParameter genParamTypeRef) {
+                        if (genParamTypeRef.Owner is MethodReference && methodRef is GenericInstanceMethod genMethodRef &&
+                            IsParamTypeRef(genMethodRef.GenericArguments[genParamTypeRef.Position], typeInfo))
+                            return true;
+
+                        if (genParamTypeRef.Owner is TypeReference && methodRef.DeclaringType is GenericInstanceType genTypeRefRef &&
+                            IsParamTypeRef(genTypeRefRef.GenericArguments[genParamTypeRef.Position], typeInfo))
+                            return true;
+
+                        if (!typeInfo.IsGenericParameter)
+                            return false;
+
+                        if (genParamTypeRef.Position == typeInfo.GenericParameterPosition)
+                            return true;
                     }
-                    if (!paramTypeRef.Is(paramInfos[i].ParameterType))
-                        return false;
+
+                    if (typeRef is GenericInstanceType genTypeRef) {
+                        if (!typeInfo.IsGenericType)
+                            return false;
+
+                        Collection<TypeReference> gparamRefs = genTypeRef.GenericArguments;
+                        Type[] gparamInfos = typeInfo.AsType().GetGenericArguments();
+                        if (gparamRefs.Count != gparamInfos.Length)
+                            return false;
+
+                        for (int i = 0; i < gparamRefs.Count; i++) {
+                            if (!IsParamTypeRef(gparamRefs[i], gparamInfos[i].GetTypeInfo()))
+                                return false;
+                        }
+
+                        return IsParamTypeRef(genTypeRef.ElementType, typeInfo.GetGenericTypeDefinition().GetTypeInfo());
+                    }
+
+                    if (typeRef is ArrayType arrayTypeRef) {
+                        if (!typeInfo.IsArray)
+                            return false;
+
+                        return arrayTypeRef.Dimensions.Count == typeInfo.GetArrayRank() && IsParamTypeRef(arrayTypeRef.ElementType, typeInfo.GetElementType().GetTypeInfo());
+                    }
+
+                    if (typeRef is TypeSpecification typeSpecRef)
+                        // Note: There are TypeSpecifications which map to non-ElementType-y reflection Types.
+                        return IsParamTypeRef(typeSpecRef.ElementType, typeInfo.HasElementType ? typeInfo.GetElementType().GetTypeInfo() : typeInfo);
+
+                    if (typeRef.DeclaringType != null && typeInfo.DeclaringType != null)
+                        return typeRef.Name == typeInfo.Name && IsParamTypeRef(typeRef.DeclaringType, typeInfo.DeclaringType.GetTypeInfo());
+                    return typeRef.FullName == typeInfo.FullName;
                 }
+
+                for (int i = 0; i < paramRefs.Count; i++)
+                    if (!IsParamTypeRef(paramRefs[i].ParameterType, paramInfos[i].ParameterType.GetTypeInfo()))
+                        return false;
 
                 return true;
             }
+
+            if (mref is FieldReference && !(minfo is System.Reflection.FieldInfo))
+                return false;
+
+            if (mref is PropertyReference && !(minfo is System.Reflection.PropertyInfo))
+                return false;
+
+            if (mref is EventReference && !(minfo is System.Reflection.EventInfo))
+                return false;
 
             return true;
         }
@@ -523,8 +650,7 @@ namespace MonoMod.Utils {
             if (mtp is MethodReference) return ((MethodReference) mtp).Relink(relinker, context);
             if (mtp is FieldReference) return ((FieldReference) mtp).Relink(relinker, context);
             if (mtp is ParameterDefinition) return ((ParameterDefinition) mtp).Relink(relinker, context);
-            // TODO: relink EventDefinitions
-            // if (mtp is EventDefinition) return ((EventDefinition) mtp).Relink(relinker, context);
+            if (mtp is CallSite) return ((CallSite) mtp).Relink(relinker, context);
             throw new InvalidOperationException($"MonoMod can't handle metadata token providers of the type {mtp.GetType()}");
         }
 
@@ -626,6 +752,23 @@ namespace MonoMod.Utils {
             }
 
             return (MethodReference) relinker(relink, context);
+        }
+
+        public static CallSite Relink(this CallSite method, Relinker relinker, IGenericParameterProvider context) {
+            CallSite relink = new CallSite(method.ReturnType);
+
+            relink.CallingConvention = method.CallingConvention;
+            relink.ExplicitThis = method.ExplicitThis;
+            relink.HasThis = method.HasThis;
+
+            relink.ReturnType = relink.ReturnType?.Relink(relinker, context);
+
+            foreach (ParameterDefinition param in method.Parameters) {
+                param.ParameterType = param.ParameterType.Relink(relinker, context);
+                relink.Parameters.Add(param);
+            }
+
+            return (CallSite) relinker(relink, context);
         }
 
         public static IMetadataTokenProvider Relink(this FieldReference field, Relinker relinker, IGenericParameterProvider context) {
@@ -877,7 +1020,7 @@ namespace MonoMod.Utils {
             return mtp;
         }
 
-#if LEGACY
+#if CECIL0_9
         public static TypeReference ImportReference(this ModuleDefinition mod, TypeReference type)
             => mod.Import(type);
         public static TypeReference ImportReference(this ModuleDefinition mod, Type type, IGenericParameterProvider context)
@@ -1144,24 +1287,41 @@ namespace MonoMod.Utils {
         public static void ConvertShortLongOps(this MethodDefinition method) {
             if (!method.HasBody)
                 return;
+
+            // Convert short to long ops.
             for (int i = 0; i < method.Body.Instructions.Count; i++) {
                 Instruction instr = method.Body.Instructions[i];
-                // Change short <-> long operations as the method grows / shrinks.
                 if (instr.Operand is Instruction) {
-                    int offs = ((Instruction) instr.Operand).Offset - instr.Offset;
-                    // sbyte.MinValue is -128, but -127 is the first "long" value.
-                    if (offs <= -127 || offs >= 127)
-                        instr.OpCode = instr.OpCode.ShortToLongOp();
-                    else
-                        instr.OpCode = instr.OpCode.LongToShortOp();
+                    instr.OpCode = instr.OpCode.ShortToLongOp();
                 }
             }
+
+            method.RecalculateILOffsets();
+
+            // Optimize long to short ops.
+            bool optimized;
+            do {
+                optimized = false;
+                for (int i = 0; i < method.Body.Instructions.Count; i++) {
+                    Instruction instr = method.Body.Instructions[i];
+                    // Change short <-> long operations as the method grows / shrinks.
+                    if (instr.Operand is Instruction target) {
+                        // Thanks to Chicken Bones for helping out with this!
+                        int distance = target.Offset - (instr.Offset + instr.GetSize());
+                        if (distance == (sbyte) distance) {
+                            OpCode prev = instr.OpCode;
+                            instr.OpCode = instr.OpCode.LongToShortOp();
+                            optimized = prev != instr.OpCode;
+                        }
+                    }
+                }
+            } while (optimized);
         }
 
-        private readonly static Type t_Code = typeof(Code);
-        private readonly static Type t_OpCodes = typeof(OpCodes);
+        private static readonly Type t_Code = typeof(Code);
+        private static readonly Type t_OpCodes = typeof(OpCodes);
 
-        private readonly static Dictionary<int, OpCode> _ShortToLongOp = new Dictionary<int, OpCode>();
+        private static readonly Dictionary<int, OpCode> _ShortToLongOp = new Dictionary<int, OpCode>();
         public static OpCode ShortToLongOp(this OpCode op) {
             string name = Enum.GetName(t_Code, op.Code);
             if (!name.EndsWith("_S"))
@@ -1171,7 +1331,7 @@ namespace MonoMod.Utils {
             return _ShortToLongOp[(int) op.Code] = (OpCode?) t_OpCodes.GetField(name.Substring(0, name.Length - 2))?.GetValue(null) ?? op;
         }
 
-        private readonly static Dictionary<int, OpCode> _LongToShortOp = new Dictionary<int, OpCode>();
+        private static readonly Dictionary<int, OpCode> _LongToShortOp = new Dictionary<int, OpCode>();
         public static OpCode LongToShortOp(this OpCode op) {
             string name = Enum.GetName(t_Code, op.Code);
             if (name.EndsWith("_S"))

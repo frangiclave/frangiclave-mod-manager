@@ -13,6 +13,11 @@ using System.Text;
 using System.Text.RegularExpressions;
 using MonoMod.Utils;
 
+#if NETSTANDARD
+using static System.Reflection.IntrospectionExtensions;
+using static System.Reflection.TypeExtensions;
+#endif
+
 namespace MonoMod {
 
     public delegate bool MethodParser(MonoModder modder, MethodBody body, Instruction instr, ref int instri);
@@ -42,9 +47,9 @@ namespace MonoMod {
 
     public class MonoModder : IDisposable {
 
-        public readonly static bool IsMono = Type.GetType("Mono.Runtime") != null;
+        public static readonly bool IsMono = Type.GetType("Mono.Runtime") != null;
 
-        public readonly static Version Version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        public static readonly Version Version = typeof(MonoModder).GetTypeInfo().Assembly.GetName().Version;
 
         // WasIDictionary and the _ IDictionaries are used when upgrading mods.
 
@@ -159,7 +164,7 @@ namespace MonoMod {
                     _writerParameters = new WriterParameters() {
                         WriteSymbols = true,
                         SymbolWriterProvider =
-#if !LEGACY
+#if !CECIL0_9
                             pdb ? new NativePdbWriterProvider() :
 #else
                             pdb ? new PdbWriterProvider() :
@@ -195,7 +200,7 @@ namespace MonoMod {
                     List<string> paths = new List<string>();
                     string gac = Path.Combine(
                         Path.GetDirectoryName(
-                            Path.GetDirectoryName(typeof(object).Module.FullyQualifiedName)
+                            Path.GetDirectoryName(typeof(object).GetTypeInfo().Module.FullyQualifiedName)
                         ),
                         "gac"
                     );
@@ -256,7 +261,7 @@ namespace MonoMod {
 
         public virtual void ClearCaches(bool all = false, bool shareable = false, bool moduleSpecific = false) {
             if (all || shareable) {
-#if !LEGACY
+#if !CECIL0_9
                 foreach (KeyValuePair<string, ModuleDefinition> dep in DependencyCache)
                     dep.Value.Dispose();
 #endif
@@ -272,17 +277,17 @@ namespace MonoMod {
         public virtual void Dispose() {
             ClearCaches(all: true);
 
-#if !LEGACY
+#if !CECIL0_9
             Module?.Dispose();
 #endif
             Module = null;
 
-#if !LEGACY
+#if !CECIL0_9
             AssemblyResolver?.Dispose();
 #endif
             AssemblyResolver = null;
 
-#if !LEGACY
+#if !CECIL0_9
             foreach (ModuleDefinition mod in Mods)
                 mod?.Dispose();
 
@@ -401,7 +406,7 @@ namespace MonoMod {
                     dep = AssemblyResolver.Resolve(depRef)?.MainModule;
                 } catch { }
                 if (dep != null)
-#if !LEGACY
+#if !CECIL0_9
                     path = dep.FileName;
 #else
                     path = dep.FullyQualifiedName;
@@ -446,13 +451,14 @@ namespace MonoMod {
                     dep = AssemblyResolver.Resolve(new AssemblyNameReference(fullName ?? name, new Version(0, 0, 0, 0)))?.MainModule;
                 } catch { }
                 if (dep != null)
-#if !LEGACY
+#if !CECIL0_9
                     path = dep.FileName;
 #else
                     path = dep.FullyQualifiedName;
 #endif
             }
 
+#if !NETSTANDARD
             // Check if available in GAC
             // Note: This is a fallback as MonoMod depends on a low version of the .NET Framework.
             // This unfortunately breaks ReflectionOnlyLoad on targets higher than the MonoMod target.
@@ -463,6 +469,7 @@ namespace MonoMod {
                 } catch { }
                 path = asm?.Location;
             }
+#endif
 
             if (dep == null) {
                 if (path != null && File.Exists(path)) {
@@ -516,7 +523,7 @@ namespace MonoMod {
             ReaderParameters rp = new ReaderParameters(_rp.ReadingMode);
             rp.AssemblyResolver = _rp.AssemblyResolver;
             rp.MetadataResolver = _rp.MetadataResolver;
-#if !LEGACY
+#if !CECIL0_9
             rp.MetadataImporterProvider = _rp.MetadataImporterProvider;
             rp.ReflectionImporterProvider = _rp.ReflectionImporterProvider;
 #endif
@@ -1388,27 +1395,13 @@ namespace MonoMod {
                 }
 
             } else if (existingMethod != null && origMethod == null) {
-                origMethod = new MethodDefinition(method.GetOriginalName(), existingMethod.Attributes & ~MethodAttributes.SpecialName & ~MethodAttributes.RTSpecialName, existingMethod.ReturnType);
-                origMethod.DeclaringType = existingMethod.DeclaringType;
-                origMethod.MetadataToken = GetMetadataToken(TokenType.Method);
-                origMethod.Body = existingMethod.Body.Clone(origMethod);
+                origMethod = existingMethod.Clone();
+                origMethod.Name = method.GetOriginalName();
                 origMethod.Attributes = existingMethod.Attributes & ~MethodAttributes.SpecialName & ~MethodAttributes.RTSpecialName;
-                origMethod.ImplAttributes = existingMethod.ImplAttributes;
-                origMethod.PInvokeInfo = existingMethod.PInvokeInfo;
-                origMethod.IsPreserveSig = existingMethod.IsPreserveSig;
-                origMethod.IsPInvokeImpl = existingMethod.IsPInvokeImpl;
-
+                origMethod.MetadataToken = GetMetadataToken(TokenType.Method);
                 origMethod.IsVirtual = false; // Fix overflow when calling orig_ method, but orig_ method already defined higher up
 
-                foreach (GenericParameter genParam in existingMethod.GenericParameters)
-                    origMethod.GenericParameters.Add(genParam.Clone());
-
-                foreach (ParameterDefinition param in existingMethod.Parameters)
-                    origMethod.Parameters.Add(param);
-
-                foreach (CustomAttribute attrib in existingMethod.CustomAttributes)
-                    origMethod.CustomAttributes.Add(attrib.Clone());
-
+                origMethod.Overrides.Clear();
                 foreach (MethodReference @override in method.Overrides)
                     origMethod.Overrides.Add(@override);
 
@@ -1493,31 +1486,43 @@ namespace MonoMod {
 
 #region PatchRefs Pass
         public virtual void PatchRefs() {
-            if (Environment.GetEnvironmentVariable("MONOMOD_LEGACY_RELINKMAP") != "0") {
-                // TODO: Make this "opt-in" in the future.
+            if (Environment.GetEnvironmentVariable("MONOMOD_LEGACY_RELINKMAP") == "1") {
                 _SplitUpgrade();
             }
 
-            // Attempt to remap and remove redundant mscorlib references.
-            // Subpass 1: Find newest referred version.
-            List<AssemblyNameReference> mscorlibDeps = new List<AssemblyNameReference>();
-            for (int i = 0; i < Module.AssemblyReferences.Count; i++) {
-                AssemblyNameReference dep = Module.AssemblyReferences[i];
-                if (dep.Name == "mscorlib") {
-                    mscorlibDeps.Add(dep);
-                }
+            string mscorlibUpgradeStr = Environment.GetEnvironmentVariable("MONOMOD_MSCORLIB_UPGRADE");
+            bool mscorlibUpdate;
+            if (!string.IsNullOrEmpty(mscorlibUpgradeStr)) {
+                mscorlibUpdate = mscorlibUpgradeStr == "1";
+            } else {
+                // Check if the assembly depends on mscorlib 2.0.5.0, possibly Unity.
+                // If so, upgrade to that version (or away to an even higher version).
+                Version fckUnity = new Version(2, 0, 5, 0);
+                mscorlibUpdate = Module.AssemblyReferences.Any(x => x.Version == fckUnity);
             }
-            if (mscorlibDeps.Count > 1) {
-                // Subpass 2: Apply changes if found.
-                AssemblyNameReference maxmscorlib = mscorlibDeps.OrderByDescending(x => x.Version).First();
-                if (DependencyCache.TryGetValue(maxmscorlib.FullName, out ModuleDefinition mscorlib)) {
-                    for (int i = 0; i < Module.AssemblyReferences.Count; i++) {
-                        AssemblyNameReference dep = Module.AssemblyReferences[i];
-                        if (dep.Name == "mscorlib" && maxmscorlib.Version > dep.Version) {
-                            LogVerbose("[PatchRefs] Removing and relinking duplicate mscorlib: " + dep.Version);
-                            RelinkModuleMap[dep.FullName] = mscorlib;
-                            Module.AssemblyReferences.RemoveAt(i);
-                            --i;
+
+            if (mscorlibUpdate) {
+                // Attempt to remap and remove redundant mscorlib references.
+                // Subpass 1: Find newest referred version.
+                List<AssemblyNameReference> mscorlibDeps = new List<AssemblyNameReference>();
+                for (int i = 0; i < Module.AssemblyReferences.Count; i++) {
+                    AssemblyNameReference dep = Module.AssemblyReferences[i];
+                    if (dep.Name == "mscorlib") {
+                        mscorlibDeps.Add(dep);
+                    }
+                }
+                if (mscorlibDeps.Count > 1) {
+                    // Subpass 2: Apply changes if found.
+                    AssemblyNameReference maxmscorlib = mscorlibDeps.OrderByDescending(x => x.Version).First();
+                    if (DependencyCache.TryGetValue(maxmscorlib.FullName, out ModuleDefinition mscorlib)) {
+                        for (int i = 0; i < Module.AssemblyReferences.Count; i++) {
+                            AssemblyNameReference dep = Module.AssemblyReferences[i];
+                            if (dep.Name == "mscorlib" && maxmscorlib.Version > dep.Version) {
+                                LogVerbose("[PatchRefs] Removing and relinking duplicate mscorlib: " + dep.Version);
+                                RelinkModuleMap[dep.FullName] = mscorlib;
+                                Module.AssemblyReferences.RemoveAt(i);
+                                --i;
+                            }
                         }
                     }
                 }
@@ -1558,7 +1563,7 @@ namespace MonoMod {
             Log("[UpgradeSplit] It is only meant to preserve compatibility with mods during the transition to a \"split\" MonoMod.");
 
             string root = Path.GetDirectoryName(DependencyCache["MonoMod"]
-#if !LEGACY
+#if !CECIL0_9
                 .FileName
 #else
                 .FullyQualifiedName
@@ -1639,7 +1644,7 @@ namespace MonoMod {
 
             // Don't foreach when modifying the collection
             for (int i = 0; i < type.Interfaces.Count; i++) {
-#if !LEGACY
+#if !CECIL0_9
                 InterfaceImplementation interf = type.Interfaces[i];
                 InterfaceImplementation newInterf = new InterfaceImplementation(interf.InterfaceType.Relink(Relinker, type));
                 foreach (CustomAttribute attrib in interf.CustomAttributes)
@@ -1940,7 +1945,6 @@ namespace MonoMod {
                     method.ImplAttributes &= (MethodImplAttributes) 0x0100;
                 }
 
-                method.RecalculateILOffsets();
                 method.ConvertShortLongOps();
 
                 RunCustomAttributeHandlers(method);
@@ -2146,12 +2150,32 @@ namespace MonoMod {
         /// <param name="type">The type of the new token.</param>
         /// <returns>A MetadataToken with an unique RID for the target module.</returns>
         public virtual MetadataToken GetMetadataToken(TokenType type) {
-            try {
-                while (Module.LookupToken(CurrentRID | (int) type) != null) {
+            /* Notes:
+             * 
+             * Mono.Cecil does a great job fixing tokens anyway.
+             * 
+             * The ModuleDef must be constructed with a reader, thus
+             * from an image, as that is the only way a MetadataReader
+             * gets assigned to the ModuleDef.
+             * 
+             * At the same time, the module has only got a file name when
+             * it has been passed on from the image it has been created from.
+             * 
+             * Creating an image from a name-less stream results in an empty string.
+             */
+#if !CECIL0_9
+            if (Module.FileName == null) {
+                ++CurrentRID;
+            } else
+#endif
+            {
+                try {
+                    while (Module.LookupToken(CurrentRID | (int) type) != null) {
+                        ++CurrentRID;
+                    }
+                } catch {
                     ++CurrentRID;
                 }
-            } catch {
-                CurrentRID++;
             }
             return new MetadataToken(type, CurrentRID);
         }

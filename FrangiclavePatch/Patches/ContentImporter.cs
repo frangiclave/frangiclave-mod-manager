@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Assets.CS.TabletopUI;
@@ -79,7 +78,12 @@ namespace Frangiclave.Patches
                 {
                     remoteAlternatives[id] = new List<bool>();
                     foreach (Hashtable ra in recipeData.GetArrayList("alternativerecipes"))
-                        remoteAlternatives[id].Add(ra.GetBool("remote"));
+                    {
+                        var isRemote = ra.GetBool("remote");
+                        remoteAlternatives[id].Add(isRemote);
+                        if (isRemote)
+                            ra.Remove("remote");
+                    }
                 }
             }
 
@@ -96,8 +100,10 @@ namespace Frangiclave.Patches
                 }
 
                 if (remoteAlternatives.ContainsKey(recipe.Id))
+                {
                     for (int i = 0; i < remoteAlternatives[recipe.Id].Count; i++)
                         recipe.AlternativeRecipes[i].Remote = remoteAlternatives[recipe.Id][i];
+                }
             }
         }
 
@@ -300,32 +306,37 @@ namespace Frangiclave.Patches
                         }
 
                         object originalPropertyValue = item[originalProperty];
-                        Type propType = originalPropertyValue.GetType();
-                        if (propType == typeof(Hashtable))
+                        switch (originalPropertyValue)
                         {
-                            var value = item.GetHashtable(originalProperty);
-                            foreach (string toDelete in newValue)
+                            case Hashtable _:
                             {
-                                if (value.ContainsKey(toDelete))
-                                    value.Remove(toDelete);
-                                else
-                                    Logging.Warn($"Failed to delete '{toDelete}' from '{originalProperty}' in '{itemId}'");
+                                var value = item.GetHashtable(originalProperty);
+                                foreach (string toDelete in newValue)
+                                {
+                                    if (value.ContainsKey(toDelete))
+                                        value.Remove(toDelete);
+                                    else
+                                        Logging.Warn($"Failed to delete '{toDelete}' from '{originalProperty}' in '{itemId}'");
+                                }
+
+                                break;
                             }
-                        }
-                        else if (propType == typeof(ArrayList))
-                        {
-                            var value = item.GetArrayList(originalProperty);
-                            foreach (string toDelete in newValue)
+                            case ArrayList _:
                             {
-                                if (value.Contains(toDelete))
-                                    value.Remove(toDelete);
-                                else
-                                    Logging.Warn($"Failed to delete '{toDelete}' from '{originalProperty}' in '{itemId}'");
+                                var value = item.GetArrayList(originalProperty);
+                                foreach (string toDelete in newValue)
+                                {
+                                    if (value.Contains(toDelete))
+                                        value.Remove(toDelete);
+                                    else
+                                        Logging.Warn($"Failed to delete '{toDelete}' from '{originalProperty}' in '{itemId}'");
+                                }
+
+                                break;
                             }
-                        }
-                        else
-                        {
-                            Logging.Warn($"Cannot apply '{operation}' to '{originalProperty}' in '{itemId}': invalid type, must be a dictionary or a list");
+                            default:
+                                Logging.Warn($"Cannot apply '{operation}' to '{originalProperty}' in '{itemId}': invalid type, must be a dictionary or a list");
+                                break;
                         }
 
                         break;

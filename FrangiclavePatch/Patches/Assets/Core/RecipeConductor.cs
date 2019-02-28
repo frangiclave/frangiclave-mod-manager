@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using Assets.Core;
 using Assets.Core.Commands;
+using Assets.Core.Entities;
 using MonoMod;
 using Noon;
 
@@ -18,13 +18,13 @@ namespace Frangiclave.Patches.Assets.Core
     {
         [MonoModIgnore] private ICompendium compendium;
 
-        [MonoModIgnore] private IAspectsDictionary aspectsToConsider;
+        [MonoModIgnore] private AspectsInContext aspectsToConsider;
 
         [MonoModIgnore] private IDice dice;
 
         [MonoModIgnore] private Character currentCharacter;
 
-        public RecipeConductor(ICompendium c, IAspectsDictionary a, IDice d, Character character) : base(c, a, d,
+        public RecipeConductor(ICompendium c, AspectsInContext a, IDice d, Character character) : base(c, a, d,
             character)
         {
         }

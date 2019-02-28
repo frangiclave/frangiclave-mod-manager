@@ -20,8 +20,8 @@ namespace MonoMod.Utils {
         }
         public static void FreeReference(int id) => References[id] = null;
 
-        private readonly static MethodInfo _GetMethodFromHandle = typeof(MethodBase).GetMethod("GetMethodFromHandle", new Type[] { typeof(RuntimeMethodHandle) });
-        private readonly static MethodInfo _GetReference = typeof(DynamicMethodHelper).GetMethod("GetReference");
+        private static readonly MethodInfo _GetMethodFromHandle = typeof(MethodBase).GetMethod("GetMethodFromHandle", new Type[] { typeof(RuntimeMethodHandle) });
+        private static readonly MethodInfo _GetReference = typeof(DynamicMethodHelper).GetMethod("GetReference");
 
         /// <summary>
         /// Fill the DynamicMethod with a stub.
@@ -64,7 +64,19 @@ namespace MonoMod.Utils {
             int id = AddReference(obj);
             il.Emit(OpCodes.Ldc_I4, id);
             il.Emit(OpCodes.Call, _GetReference);
-            if (t.IsValueType)
+            if (t.GetTypeInfo().IsValueType)
+                il.Emit(OpCodes.Unbox_Any, t);
+            return id;
+        }
+
+        /// <summary>
+        /// Emit a reference to an arbitrary object. Note that the references "leak."
+        /// </summary>
+        public static int EmitGetReference<T>(this ILGenerator il, int id) {
+            Type t = typeof(T);
+            il.Emit(OpCodes.Ldc_I4, id);
+            il.Emit(OpCodes.Call, _GetReference);
+            if (t.GetTypeInfo().IsValueType)
                 il.Emit(OpCodes.Unbox_Any, t);
             return id;
         }

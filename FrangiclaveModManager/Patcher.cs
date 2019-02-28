@@ -61,6 +61,7 @@ namespace FrangiclaveModManager
                 OutputPath = assemblyPath + ".tmp"
             })
             {
+                Environment.SetEnvironmentVariable("MONOMOD_DEPENDENCY_MISSING_THROW", "0");
                 mm.Read();
                 mm.ReadMod(Path.Combine(_assemblyDirectory, AssemblyPatchName));
                 mm.MapDependencies();

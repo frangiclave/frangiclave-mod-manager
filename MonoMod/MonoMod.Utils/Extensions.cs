@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -150,7 +151,7 @@ namespace MonoMod.Utils {
 
             Delegate[] delegates = source.GetInvocationList();
             if (delegates.Length == 1)
-                return Delegate.CreateDelegate(type, delegates[0].Target, delegates[0].Method);
+                return NETStandardShims.CreateDelegate(type, delegates[0].Target, delegates[0].GetMethodInfo());
 
             Delegate[] delegatesDest = new Delegate[delegates.Length];
             for (int i = 0; i < delegates.Length; i++)
@@ -177,7 +178,7 @@ namespace MonoMod.Utils {
             try {
                 Delegate[] delegates = source.GetInvocationList();
                 if (delegates.Length == 1) {
-                    result = Delegate.CreateDelegate(type, delegates[0].Target, delegates[0].Method);
+                    result = NETStandardShims.CreateDelegate(type, delegates[0].Target, delegates[0].GetMethodInfo());
                     return true;
                 }
 
@@ -261,10 +262,84 @@ namespace MonoMod.Utils {
 
             // TODO: Check delegate Invoke parameters against method parameters.
 
+#if NETSTANDARD1_X
+            throw new NotSupportedException();
+#else
             RuntimeMethodHandle handle = method.MethodHandle;
             RuntimeHelpers.PrepareMethod(handle);
             IntPtr ptr = handle.GetFunctionPointer();
             return (Delegate) Activator.CreateInstance(delegateType, target, ptr);
+#endif
+        }
+
+        private static readonly Dictionary<Type, int> _GetManagedSizeCache = new Dictionary<Type, int>() {
+            { typeof(void), 0 }
+        };
+        public static int GetManagedSize(this Type t) {
+            if (_GetManagedSizeCache.TryGetValue(t, out int size))
+                return size;
+
+            // Note: sizeof is more accurate for the "managed size" than Marshal.SizeOf (marshalled size)
+            // It also returns a value for types of which the size cannot be determined otherwise.
+
+            DynamicMethod dm = new DynamicMethod(
+                $"GetSize<{t.FullName}>",
+                typeof(int), Type.EmptyTypes,
+                true
+            );
+
+            ILGenerator il = dm.GetILGenerator();
+            il.Emit(OpCodes.Sizeof, t);
+            il.Emit(OpCodes.Ret);
+
+            lock (_GetManagedSizeCache) {
+                return _GetManagedSizeCache[t] = (dm.CreateDelegate(typeof(Func<int>)) as Func<int>)();
+            }
+        }
+
+        private static readonly Dictionary<MethodBase, Func<IntPtr>> _GetLdftnPointerCache = new Dictionary<MethodBase, Func<IntPtr>>();
+        public static IntPtr GetLdftnPointer(this MethodBase m) {
+            if (_GetLdftnPointerCache.TryGetValue(m, out Func<IntPtr> func))
+                return func();
+
+            // Note: ldftn doesn't JIT the method on mono, keeping the class constructor untouched.
+            // Its result thus doesn't always match MethodHandle.GetFunctionPointer().
+
+            DynamicMethod dm = new DynamicMethod(
+                $"GetLdftnPointer<{m.GetFindableID(simple: true)}>",
+                typeof(int), Type.EmptyTypes,
+                true
+            );
+
+            ILGenerator il = dm.GetILGenerator();
+            if (m is ConstructorInfo)
+                il.Emit(OpCodes.Ldftn, (ConstructorInfo) m);
+            else
+                il.Emit(OpCodes.Ldftn, (MethodInfo) m);
+            il.Emit(OpCodes.Ret);
+
+            lock (_GetLdftnPointerCache) {
+                return (_GetLdftnPointerCache[m] = dm.CreateDelegate(typeof(Func<IntPtr>)) as Func<IntPtr>)();
+            }
+        }
+
+        public static bool IsCompatible(this Type type, Type other)
+            => _IsCompatible(type, other) || _IsCompatible(other, type);
+        public static bool _IsCompatible(this Type type, Type other) {
+            if (type.GetTypeInfo().IsAssignableFrom(other.GetTypeInfo()))
+                return true;
+
+            if (other.GetTypeInfo().IsEnum && IsCompatible(type, Enum.GetUnderlyingType(other)))
+                return true;
+
+            return false;
+        }
+
+        public static Type GetThisParamType(this MethodBase method) {
+            Type type = method.DeclaringType;
+            if (type.GetTypeInfo().IsValueType)
+                type = type.MakeByRefType();
+            return type;
         }
 
     }
